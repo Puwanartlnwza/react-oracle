@@ -6,17 +6,13 @@ require("dotenv").config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-// =====================================================
-// Oracle Database Configuration
-// =====================================================
+
 const dbConfig = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   connectString: `${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_SERVICE}`,
 };
-// =====================================================
-// Get Oracle Connection
-// =====================================================
+
 async function getConnection() {
   try {
     const connection = await oracledb.getConnection(dbConfig);
@@ -37,11 +33,9 @@ async function generateEmpId(connection) {
   // 2569 -> 69
   const yearCode = String(buddhistYear).slice(-2);
   const result = await connection.execute(
-    `
-    SELECT MAX(EMPID) AS MAXID
-    FROM MUTEMP
-    WHERE EMPID LIKE :prefix
-    `,
+    `SELECT MAX(EMPID) AS MAXID
+      FROM MUTEMP
+      WHERE EMPID LIKE :prefix`,
     {
       prefix: `EMP${yearCode}%`,
     },
@@ -68,16 +62,9 @@ app.get("/api/mutemp", async (req, res) => {
   try {
     connection = await getConnection();
     const result = await connection.execute(
-      `
-      SELECT
-      EMPID,
-      EMPNAME,
-      EMPADDRESS,
-      EMPEMAIL,
-      SALARY
+      `SELECT EMPID,EMPNAME,EMPADDRESS,EMPEMAIL,SALARY
       FROM MUTEMP
-      ORDER BY EMPID
-`,
+      ORDER BY EMPID`,
     );
     const employees = result.rows.map((row) => ({
       empId: row[0],
@@ -109,17 +96,9 @@ app.get("/api/mutemp/:id", async (req, res) => {
     const empId = req.params.id;
     connection = await getConnection();
     const result = await connection.execute(
-      `
-    SELECT
-    EMPID,
-    EMPNAME,
-    EMPADDRESS,
-    EMPEMAIL,
-    SALARY
-    FROM MUTEMP
-    WHERE EMPID = :empId
-    `,
-
+      `SELECT  EMPID,EMPNAME,EMPADDRESS,EMPEMAIL,SALARY
+      FROM MUTEMP
+      WHERE EMPID = :empId`,
       {
         empId: empId,
       },
@@ -175,27 +154,15 @@ app.post("/api/mutemp", async (req, res) => {
     // Insert Data
     // ---------------------------------------------
     await connection.execute(
-      `
-INSERT INTO MUTEMP
-(
-EMPID,
-EMPNAME,
-EMPADDRESS,
-EMPEMAIL,
-
-EMPPASSWORD,
-SALARY
-)
-VALUES
-(
-:empId,
-:empname,
-:empaddress,
-:empemail,
-:emppassword,
-:salary
-)
-`,
+      `INSERT INTO MUTEMP(EMPID,EMPNAME,EMPADDRESS,EMPEMAIL,EMPPASSWORD,SALARY)
+    VALUES(
+    :empId,
+    :empname,
+    :empaddress,
+    :empemail,
+    :emppassword,
+    :salary
+    )`,
       {
         empId: empId,
         empname: empname,
@@ -239,16 +206,13 @@ app.put("/api/mutemp/:id", async (req, res) => {
     if (emppassword && emppassword.trim() !== "") {
       const hashedPassword = await bcrypt.hash(emppassword, 10);
       await connection.execute(
-        `
-UPDATE MUTEMP
-SET
-EMPNAME = :empname,
-EMPADDRESS = :empaddress,
-EMPEMAIL = :empemail,
-EMPPASSWORD = :emppassword,
-SALARY = :salary
-WHERE EMPID = :empId
-`,
+        `UPDATE MUTEMP SET
+        EMPNAME = :empname,
+        EMPADDRESS = :empaddress,
+        EMPEMAIL = :empemail,
+        EMPPASSWORD = :emppassword,
+        SALARY = :salary
+        WHERE EMPID = :empId`,
         {
           empId: empId,
           empname: empname,
@@ -267,15 +231,12 @@ WHERE EMPID = :empId
     // =================================================
     else {
       await connection.execute(
-        `
-UPDATE MUTEMP
-SET
-EMPNAME = :empname,
-EMPADDRESS = :empaddress,
-EMPEMAIL = :empemail,
-SALARY = :salary
-WHERE EMPID = :empId
-`,
+        `UPDATE MUTEMP SET
+        EMPNAME = :empname,
+        EMPADDRESS = :empaddress,
+        EMPEMAIL = :empemail,
+        SALARY = :salary
+        WHERE EMPID = :empId`,
         {
           empId: empId,
           empname: empname,
@@ -288,7 +249,6 @@ WHERE EMPID = :empId
         },
       );
     }
-
     res.json({
       message: "Employee updated successfully",
     });
@@ -313,10 +273,8 @@ app.delete("/api/mutemp/:id", async (req, res) => {
     const empId = req.params.id;
     connection = await getConnection();
     await connection.execute(
-      `
-DELETE FROM MUTEMP
-WHERE EMPID = :empId
-`,
+      `DELETE FROM MUTEMP 
+        WHERE EMPID = :empId`,
       {
         empId: empId,
       },
