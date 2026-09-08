@@ -5,27 +5,31 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { Modal } from "bootstrap";
 import "./App.css";
 import Navbar from "./Navbar";
+
 // =====================================================
 // API URL
 // =====================================================
 const API_URL = "http://localhost:5000/api/mutemp";
+
 function App() {
   // =====================================================
   // Employees
   // =====================================================
   const [employees, setEmployees] = useState([]);
+
   // =====================================================
   // Search
   // =====================================================
   const [search, setSearch] = useState("");
+
   // =====================================================
   // Pagination
   // =====================================================
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  // =====================================================
-  // Form
 
+  // =====================================================
+  // Form State
   // =====================================================
   const [form, setForm] = useState({
     empname: "",
@@ -34,17 +38,28 @@ function App() {
     emppassword: "",
     salary: "",
   });
+
+  // State สำหรับจัดการ Checkbox Permission (4 สิทธิ์)
+  const [permState, setPermState] = useState({
+    employee: false,
+    customer: false,
+    product: false,
+    report: false,
+  });
+
   // =====================================================
   // Edit Mode
   // =====================================================
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
+
   // =====================================================
   // Load Employees
   // =====================================================
   useEffect(() => {
     fetchEmployees();
   }, []);
+
   // =====================================================
   // GET Employees
   // =====================================================
@@ -55,7 +70,6 @@ function App() {
       console.log("GET EMPLOYEES:", response.data);
     } catch (error) {
       console.error("GET ERROR:", error);
-
       Swal.fire({
         icon: "error",
         title: "Error",
@@ -63,8 +77,9 @@ function App() {
       });
     }
   };
+
   // =====================================================
-  // Handle Input
+  // Handle Input Change
   // =====================================================
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -73,6 +88,35 @@ function App() {
       [name]: value,
     }));
   };
+
+  // Handle Checkbox Permission
+  const handlePermChange = (e) => {
+    const { name, checked } = e.target;
+    setPermState((prev) => ({
+      ...prev,
+      [name]: checked,
+    }));
+  };
+
+  // แปลง Checkbox State เป็น String 4 หลัก เช่น "0111"
+  const getPermissionString = () => {
+    const p1 = permState.employee ? "1" : "0";
+    const p2 = permState.customer ? "1" : "0";
+    const p3 = permState.product ? "1" : "0";
+    const p4 = permState.report ? "1" : "0";
+    return `${p1}${p2}${p3}${p4}`;
+  };
+
+  // แปลง String 4 หลัก เช่น "0111" กลับเป็น Checkbox State
+  const setPermissionFromString = (permStr = "0000") => {
+    setPermState({
+      employee: permStr[0] === "1",
+      customer: permStr[1] === "1",
+      product: permStr[2] === "1",
+      report: permStr[3] === "1",
+    });
+  };
+
   // =====================================================
   // Clear Form
   // =====================================================
@@ -83,6 +127,12 @@ function App() {
       empemail: "",
       emppassword: "",
       salary: "",
+    });
+    setPermState({
+      employee: false,
+      customer: false,
+      product: false,
+      report: false,
     });
     setEditMode(false);
     setEditId(null);
@@ -100,49 +150,40 @@ function App() {
       }
     }
   };
+
   // =====================================================
   // CREATE Employee
   // =====================================================
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      console.log("Sending CREATE:", form);
-      const response = await axios.post(API_URL, form);
+      const payload = {
+        ...form,
+        permission: getPermissionString(),
+      };
+      console.log("Sending CREATE:", payload);
+      const response = await axios.post(API_URL, payload);
       console.log("CREATE RESPONSE:", response.data);
-      // ---------------------------------------------
-      // Refresh Data
-      // ---------------------------------------------
-      await fetchEmployees();
-      // ---------------------------------------------
 
-      // Clear Form
-      // ---------------------------------------------
+      await fetchEmployees();
       clearForm();
-      // ---------------------------------------------
-      // Close Modal
-      // ---------------------------------------------
       closeModal();
-      // ---------------------------------------------
-      // Success Message
-      // ---------------------------------------------
+
       await Swal.fire({
         icon: "success",
         title: "Saved!",
-        text: `เพมิ่ Employee ส าเร็จ\nEmployee ID: ${
-          response.data.empId || ""
-        }`,
+        text: `เพิ่ม Employee สำเร็จ\nEmployee ID: ${response.data.empId || ""}`,
         confirmButtonText: "OK",
       });
     } catch (error) {
       console.error("CREATE ERROR:", error);
-      console.error("CREATE RESPONSE:", error.response);
       Swal.fire({
         icon: "error",
         title: "Save Failed",
         text:
           error.response?.data?.message ||
           error.message ||
-          "ไม่สามารถเพิ่มขอ้มูลได้",
+          "ไม่สามารถเพิ่มข้อมูลได้",
       });
     }
   };
@@ -153,6 +194,7 @@ function App() {
   const handleAdd = () => {
     clearForm();
   };
+
   // =====================================================
   // OPEN EDIT MODAL
   // =====================================================
@@ -163,13 +205,11 @@ function App() {
       empname: employee.empname || "",
       empaddress: employee.empaddress || "",
       empemail: employee.empemail || "",
-      // ไม่แสดง Password Hash
       emppassword: "",
       salary: employee.salary ?? "",
     });
-    // ---------------------------------------------
-    // Open Bootstrap Modal
-    // ---------------------------------------------
+    setPermissionFromString(employee.permission);
+
     const modalElement = document.getElementById("employeeModal");
     if (modalElement) {
       const modal = Modal.getOrCreateInstance(modalElement);
@@ -183,34 +223,26 @@ function App() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      console.log("Sending UPDATE:", form);
-      const response = await axios.put(`${API_URL}/${editId}`, form);
+      const payload = {
+        ...form,
+        permission: getPermissionString(),
+      };
+      console.log("Sending UPDATE:", payload);
+      const response = await axios.put(`${API_URL}/${editId}`, payload);
       console.log("UPDATE RESPONSE:", response.data);
-      // ---------------------------------------------
-      // Refresh Data
-      // ---------------------------------------------
+
       await fetchEmployees();
-      // ---------------------------------------------
-      // Clear Form
-      // ---------------------------------------------
       clearForm();
-      // ---------------------------------------------
-      // Close Modal
-      // ---------------------------------------------
       closeModal();
-      // ---------------------------------------------
-      // Success
-      // ---------------------------------------------
+
       await Swal.fire({
         icon: "success",
         title: "Updated!",
-
         text: "แก้ไขข้อมูล Employee เรียบร้อย",
         confirmButtonText: "OK",
       });
     } catch (error) {
       console.error("UPDATE ERROR:", error);
-      console.error("UPDATE RESPONSE:", error.response);
       Swal.fire({
         icon: "error",
         title: "Update Failed",
@@ -221,6 +253,7 @@ function App() {
       });
     }
   };
+
   // =====================================================
   // DELETE Employee
   // =====================================================
@@ -235,9 +268,9 @@ function App() {
       confirmButtonText: "Yes, Delete",
       cancelButtonText: "Cancel",
     });
-    if (!result.isConfirmed) {
-      return;
-    }
+
+    if (!result.isConfirmed) return;
+
     try {
       await axios.delete(`${API_URL}/${empId}`);
       await Swal.fire({
@@ -247,13 +280,10 @@ function App() {
         timer: 1500,
         showConfirmButton: false,
       });
-      // ---------------------------------------------
-      // Refresh Data
-      // ---------------------------------------------
+
       await fetchEmployees();
-      // ---------------------------------------------
-      // ตรวจสอบว่าหน้าที่ก าลังแสดงยังมีข้อมูลหรือไม่
-      // ---------------------------------------------
+
+      // ตรวจสอบ Pagination หลังลบ
       const remainingItems = filteredEmployees.length - 1;
       const newTotalPages = Math.ceil(remainingItems / itemsPerPage);
       if (currentPage > newTotalPages && newTotalPages > 0) {
@@ -265,7 +295,6 @@ function App() {
       console.error("DELETE ERROR:", error);
       Swal.fire({
         icon: "error",
-
         title: "Delete Failed",
         text:
           error.response?.data?.message ||
@@ -274,8 +303,9 @@ function App() {
       });
     }
   };
+
   // =====================================================
-  // SEARCH
+  // FILTER & SEARCH
   // =====================================================
   const filteredEmployees = employees.filter((employee) => {
     const keyword = search.toLowerCase();
@@ -294,47 +324,34 @@ function App() {
         .includes(keyword)
     );
   });
+
   // =====================================================
-  // PAGINATION
+  // PAGINATION CALCULATIONS
   // =====================================================
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
-
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentEmployees = filteredEmployees.slice(
     startIndex,
     startIndex + itemsPerPage,
   );
-  // =====================================================
-  // Search Change
-  // =====================================================
+
   const handleSearch = (e) => {
     setSearch(e.target.value);
-    // Search ใหม่กลับหน้า 1
     setCurrentPage(1);
   };
-  // =====================================================
-  // Change Page
-  // =====================================================
+
   const changePage = (page) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }
   };
-  // =====================================================
-  // Render
-  // =====================================================
+
   return (
     <>
       <Navbar />
       <div className="container py-4">
-        {/* =================================================
-HEADER
-================================================= */}
-
-        <div
-          className="d-flex justify-content-between align-items-center mb-
-4"
-        >
+        {/* HEADER */}
+        <div className="d-flex justify-content-between align-items-center mb-4">
           <h1 className="fw-bold">Employee Management</h1>
           <button
             type="button"
@@ -346,9 +363,8 @@ HEADER
             + Add Employee
           </button>
         </div>
-        {/* =================================================
-SEARCH
-================================================= */}
+
+        {/* SEARCH */}
         <div className="card shadow-sm mb-4">
           <div className="card-body">
             <div className="row">
@@ -362,40 +378,28 @@ SEARCH
                   onChange={handleSearch}
                 />
               </div>
-
               <div className="col-md-6 d-flex align-items-end">
                 <div className="text-muted">
-                  Found: <strong>{filteredEmployees.length}</strong>
-                  employee(s)
+                  Found: <strong>{filteredEmployees.length}</strong> employee(s)
                 </div>
               </div>
             </div>
           </div>
         </div>
-        {/* =================================================
-TABLE
-================================================= */}
+
+        {/* TABLE */}
         <div className="card shadow-sm">
           <div className="card-body">
-            <div
-              className="d-flex justify-content-between align-items-center
-
-mb-3"
-            >
+            <div className="d-flex justify-content-between align-items-center mb-3">
               <h4 className="mb-0">Employee List</h4>
               <span className="badge text-bg-secondary">
-                Page {totalPages === 0 ? 0 : currentPage}
-                {" / "}
-                {totalPages}
+                Page {totalPages === 0 ? 0 : currentPage} / {totalPages}
               </span>
             </div>
 
             <div className="table-responsive">
-              <table
-                className="table table-hover table-bordered align-
-middle"
-              >
-                <thead className="table-dark">
+              <table className="table table-hover table-bordered align-middle">
+                <thead className="table-primary">
                   <tr>
                     <th>#</th>
                     <th>Employee ID</th>
@@ -403,19 +407,14 @@ middle"
                     <th>Address</th>
                     <th>Email</th>
                     <th>Salary</th>
-
+                    <th>Permission</th>
                     <th className="text-center">Action</th>
                   </tr>
                 </thead>
-
                 <tbody>
                   {currentEmployees.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan="7"
-                        className="text-center py-4 text-
-muted"
-                      >
+                      <td colSpan="8" className="text-center py-4 text-muted">
                         No employee data
                       </td>
                     </tr>
@@ -430,6 +429,11 @@ muted"
                         <td>{employee.empaddress}</td>
                         <td>{employee.empemail}</td>
                         <td>{employee.salary}</td>
+                        <td>
+                          <span className="badge bg-info text-dark">
+                            {employee.permission || "0000"}
+                          </span>
+                        </td>
                         <td className="text-center">
                           <button
                             type="button"
@@ -438,7 +442,6 @@ muted"
                           >
                             Edit
                           </button>
-
                           <button
                             type="button"
                             className="btn btn-danger btn-sm"
@@ -453,13 +456,11 @@ muted"
                 </tbody>
               </table>
             </div>
-            {/* =================================================
-PAGINATION
-================================================= */}
+
+            {/* PAGINATION BUTTONS */}
             {totalPages > 0 && (
               <nav>
                 <ul className="pagination justify-content-center mb-0">
-                  {/* Previous */}
                   <li
                     className={`page-item ${currentPage === 1 ? "disabled" : ""}`}
                   >
@@ -472,13 +473,11 @@ PAGINATION
                       Previous
                     </button>
                   </li>
-                  {/* Page Number */}
+
                   {Array.from({ length: totalPages }, (_, index) => (
                     <li
                       key={index}
-                      className={`page-item ${
-                        currentPage === index + 1 ? "active" : ""
-                      }`}
+                      className={`page-item ${currentPage === index + 1 ? "active" : ""}`}
                     >
                       <button
                         type="button"
@@ -489,11 +488,9 @@ PAGINATION
                       </button>
                     </li>
                   ))}
-                  {/* Next */}
+
                   <li
-                    className={`page-item ${
-                      currentPage === totalPages ? "disabled" : ""
-                    }`}
+                    className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}
                   >
                     <button
                       type="button"
@@ -509,24 +506,20 @@ PAGINATION
             )}
           </div>
         </div>
-        {/* =================================================
-ADD / EDIT MODAL
-================================================= */}
+
+        {/* MODAL (ADD / EDIT) */}
         <div
           className="modal fade"
           id="employeeModal"
           tabIndex="-1"
-          aria-labelledby="employeeModalLabel"
           aria-hidden="true"
         >
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
-              {/* Modal Header */}
               <div className="modal-header">
-                <h5 className="modal-title" id="employeeModalLabel">
+                <h5 className="modal-title">
                   {editMode ? "Edit Employee" : "Add Employee"}
                 </h5>
-
                 <button
                   type="button"
                   className="btn-close"
@@ -534,16 +527,12 @@ ADD / EDIT MODAL
                   onClick={clearForm}
                 ></button>
               </div>
-              {/* Modal Form */}
+
               <form onSubmit={editMode ? handleUpdate : handleCreate}>
                 <div className="modal-body">
-                  {/* =================================
-Employee ID
-================================= */}
                   {editMode && (
                     <div className="mb-3">
                       <label className="form-label fw-bold">Employee ID</label>
-
                       <input
                         type="text"
                         className="form-control"
@@ -552,9 +541,7 @@ Employee ID
                       />
                     </div>
                   )}
-                  {/* =================================
-Employee Name
-================================= */}
+
                   <div className="mb-3">
                     <label className="form-label">Employee Name</label>
                     <input
@@ -567,12 +554,9 @@ Employee Name
                       required
                     />
                   </div>
-                  {/* =================================
-Address
-================================= */}
+
                   <div className="mb-3">
                     <label className="form-label">Address</label>
-
                     <textarea
                       className="form-control"
                       name="empaddress"
@@ -583,12 +567,8 @@ Address
                     ></textarea>
                   </div>
 
-                  {/* =================================
-Email
-================================= */}
                   <div className="mb-3">
                     <label className="form-label">Email</label>
-
                     <input
                       type="email"
                       className="form-control"
@@ -599,16 +579,13 @@ Email
                       required
                     />
                   </div>
-                  {/* =================================
-PASSWORD
-================================= */}
+
                   <div className="mb-3">
                     <label className="form-label fw-bold">
                       {editMode
                         ? "New Password (leave blank to keep current password)"
                         : "Password"}
                     </label>
-
                     <input
                       type="password"
                       className="form-control"
@@ -622,17 +599,8 @@ PASSWORD
                       }
                       required={!editMode}
                     />
-
-                    {/* Help Text */}
-                    {editMode && (
-                      <div className="form-text">
-                        Leave blank to keep current password.
-                      </div>
-                    )}
                   </div>
-                  {/* =================================
-Salary
-================================= */}
+
                   <div className="mb-3">
                     <label className="form-label">Salary</label>
                     <input
@@ -645,11 +613,69 @@ Salary
                       min="0"
                     />
                   </div>
+
+                  {/* PERMISSION CHECKBOXES */}
+                  <div className="mb-3">
+                    <label className="form-label fw-bold">
+                      Menu Permissions
+                    </label>
+                    <div className="d-flex gap-3">
+                      <div className="form-check">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="permEmp"
+                          name="employee"
+                          checked={permState.employee}
+                          onChange={handlePermChange}
+                        />
+                        <label className="form-check-label" htmlFor="permEmp">
+                          Employee
+                        </label>
+                      </div>
+                      <div className="form-check">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="permCus"
+                          name="customer"
+                          checked={permState.customer}
+                          onChange={handlePermChange}
+                        />
+                        <label className="form-check-label" htmlFor="permCus">
+                          Customer
+                        </label>
+                      </div>
+                      <div className="form-check">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="permProd"
+                          name="product"
+                          checked={permState.product}
+                          onChange={handlePermChange}
+                        />
+                        <label className="form-check-label" htmlFor="permProd">
+                          Product
+                        </label>
+                      </div>
+                      <div className="form-check">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="permRep"
+                          name="report"
+                          checked={permState.report}
+                          onChange={handlePermChange}
+                        />
+                        <label className="form-check-label" htmlFor="permRep">
+                          Report
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* =================================================
-MODAL FOOTER
-================================================= */}
                 <div className="modal-footer">
                   <button
                     type="button"
@@ -659,7 +685,6 @@ MODAL FOOTER
                   >
                     Cancel
                   </button>
-
                   <button type="submit" className="btn btn-primary">
                     {editMode ? "Update Employee" : "Save Employee"}
                   </button>
@@ -672,4 +697,5 @@ MODAL FOOTER
     </>
   );
 }
+
 export default App;
