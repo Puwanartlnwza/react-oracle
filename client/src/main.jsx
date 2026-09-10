@@ -10,6 +10,7 @@ import Employee from "./Employee";
 import Customer from "./Customer";
 import Login from "./Login";
 import ProtectedRoute from "./ProtectedRoute"; // 1. นำเข้า ProtectedRoute
+import Product from "./Product";
 
 const router = createBrowserRouter([
   {
@@ -34,6 +35,15 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+  {
+    path: "/product",
+    element: (
+      <ProtectedRoute requiredPermIndex={2}>
+        <Product />
+      </ProtectedRoute>
+    ),
+  },
+
   {
     path: "/login",
     element: <Login />,

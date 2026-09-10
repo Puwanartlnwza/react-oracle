@@ -2,6 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const oracledb = require("oracledb");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 const app = express();
 app.use(cors());
@@ -279,6 +282,187 @@ app.get("/api/mutcus", async (req, res) => {
     if (connection) await connection.close();
   }
 });
+
+//----------------------product--------------------------//
+
+// เปิดให้เข้าถึงโฟลเดอร์รูปภาพ static
+app.use("/img", express.static(path.join(__dirname, "img")));
+
+// สร้างโฟลเดอร์ img อัตโนมัติถ้ายังไม่มี
+const imgDir = path.join(__dirname, "img");
+if (!fs.existsSync(imgDir)) {
+  fs.mkdirSync(imgDir);
+}
+
+// ตั้งค่า Storage สำหรับ Multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "img/");
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, "PROD-" + uniqueSuffix + ext);
+  },
+});
+const upload = multer({ storage: storage });
+
+// =====================================================
+// GENERATE PRODUCT ID (P0001, P0002, ...)
+// =====================================================
+async function generateProId(connection) {
+  const result = await connection.execute(
+    `SELECT MAX(PROID) AS MAXID FROM MUTPRODUCT WHERE PROID LIKE 'P%'`,
+  );
+  let runningNumber = 1;
+  if (result.rows[0][0]) {
+    const maxId = result.rows[0][0]; // ตัวอย่าง P0001
+    const lastNumber = parseInt(maxId.substring(1), 10);
+    runningNumber = lastNumber + 1;
+  }
+  return `P${String(runningNumber).padStart(4, "0")}`;
+}
+
+// =====================================================
+// GET ALL PRODUCTS
+// =====================================================
+app.get("/api/mutproduct", async (req, res) => {
+  let connection;
+  try {
+    connection = await getConnection();
+    const result = await connection.execute(
+      `SELECT PROID, PRONAME, IMG, DETAIL, PRICE FROM MUTPRODUCT ORDER BY PROID`,
+    );
+    const products = result.rows.map((row) => ({
+      proId: row[0],
+      proName: row[1],
+      img: row[2],
+      detail: row[3],
+      price: row[4],
+    }));
+    res.json(products);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Cannot get products", error: error.message });
+  } finally {
+    if (connection) await connection.close();
+  }
+});
+
+// =====================================================
+// CREATE PRODUCT (พร้อมอัปโหลดรูป)
+// =====================================================
+app.post("/api/mutproduct", upload.single("img"), async (req, res) => {
+  let connection;
+  try {
+    const { proName, detail, price } = req.body;
+    const imgFilename = req.file ? req.file.filename : "";
+
+    connection = await getConnection();
+    const proId = await generateProId(connection);
+
+    await connection.execute(
+      `INSERT INTO MUTPRODUCT(PROID, PRONAME, IMG, DETAIL, PRICE)
+       VALUES(:proId, :proName, :img, :detail, :price)`,
+      {
+        proId,
+        proName,
+        img: imgFilename,
+        detail: detail || "",
+        price: parseFloat(price) || 0,
+      },
+      { autoCommit: true },
+    );
+
+    res.status(201).json({ message: "Product created successfully", proId });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Cannot create product", error: error.message });
+  } finally {
+    if (connection) await connection.close();
+  }
+});
+
+// =====================================================
+// UPDATE PRODUCT
+// =====================================================
+app.put("/api/mutproduct/:id", upload.single("img"), async (req, res) => {
+  let connection;
+  try {
+    const proId = req.params.id;
+    const { proName, detail, price } = req.body;
+    connection = await getConnection();
+
+    if (req.file) {
+      // มีการอัปโหลดรูปใหม่
+      const imgFilename = req.file.filename;
+      await connection.execute(
+        `UPDATE MUTPRODUCT SET
+         PRONAME = :proName,
+         IMG = :img,
+         DETAIL = :detail,
+         PRICE = :price
+         WHERE PROID = :proId`,
+        {
+          proId,
+          proName,
+          img: imgFilename,
+          detail,
+          price: parseFloat(price) || 0,
+        },
+        { autoCommit: true },
+      );
+    } else {
+      // ไม่ได้เปลี่ยนรูปใหม่
+      await connection.execute(
+        `UPDATE MUTPRODUCT SET
+         PRONAME = :proName,
+         DETAIL = :detail,
+         PRICE = :price
+         WHERE PROID = :proId`,
+        { proId, proName, detail, price: parseFloat(price) || 0 },
+        { autoCommit: true },
+      );
+    }
+
+    res.json({ message: "Product updated successfully" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Cannot update product", error: error.message });
+  } finally {
+    if (connection) await connection.close();
+  }
+});
+
+// =====================================================
+// DELETE PRODUCT
+// =====================================================
+app.delete("/api/mutproduct/:id", async (req, res) => {
+  let connection;
+  try {
+    const proId = req.params.id;
+    connection = await getConnection();
+
+    await connection.execute(
+      `DELETE FROM MUTPRODUCT WHERE PROID = :proId`,
+      { proId },
+      { autoCommit: true },
+    );
+
+    res.json({ message: "Product deleted successfully" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Cannot delete product", error: error.message });
+  } finally {
+    if (connection) await connection.close();
+  }
+});
+
+//--------------------------------------------------------//
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
